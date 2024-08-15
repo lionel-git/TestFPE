@@ -8,6 +8,8 @@
 #include <algorithm>
 #include <format>
 
+#include "sha256.h"
+
 #define MIN(a,b) ((a) < (b) ? (a) : (b))
 #define MAX(a,b) ((a) > (b) ? (a) : (b))
 
@@ -89,6 +91,22 @@ void parseOption(int argc, char** argv, bool& throwFPE, size_t& N)
     }
 }
 
+void hash_result(const char *data, size_t size)
+{
+    SHA256_CTX ctx;
+    sha256_init(&ctx);
+    sha256_update(&ctx, (const BYTE*)data, size);
+    unsigned char out[32];
+    sha256_final(&ctx, out);
+
+    for (int i = 0; i < 32; i++)
+    {
+        printf("%02x", (int)out[i]);
+    }
+    printf("\n");
+}
+
+
 void test_calculations(size_t N)
 {
     std::cout << "N = " << N << std::endl;
@@ -108,19 +126,18 @@ void test_calculations(size_t N)
     double s = 0.0;
     for (int i = 0; i < v.size(); ++i)
     {
-        if (!std::isnormal(v[i]))
+        if (!std::isfinite(v[i]))
             v[i] = 0.3;
         double a = MIN(v[i], 1e+100);
         a = MAX(a, -1e+100);
+        if (a > 0)
+            a = MAX(a, 1e-100);
+        if (a < 0)
+            a = MIN(a, -1e-100);
         v[i] = 1 / a + 1 / std::sqrt((a * a + 1.235));
     }
-
-    unsigned long long res = 0;
-    for (int i = 0; i < v.size(); ++i)
-    {
-        res += p[i];
-    }
-    std::cout << "0x" << std::hex << res << std::endl;
+    std::cout << "Start hashing" << std::endl;
+    hash_result((const char*)v.data(), v.size() * sizeof(double));
 }
 
 int main(int argc, char** argv)
