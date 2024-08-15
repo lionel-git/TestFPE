@@ -30,15 +30,36 @@ void test1()
 }
 
 
+int filter_exception(unsigned int code, struct _EXCEPTION_POINTERS* ep)
+{
+    std::cout << "Filter: 0x" << std::hex << code << std::endl;
+    if (code == EXCEPTION_INT_DIVIDE_BY_ZERO)
+    {
+        std::cout << "Divide by zero" << std::endl;
+    }
+    else if (code == EXCEPTION_FLT_DIVIDE_BY_ZERO)
+    {
+        std::cout << "Floating point divide by zero" << std::endl;
+    }
+    else if (code == EXCEPTION_FLT_INVALID_OPERATION)
+    {
+        std::cout << "Floating point invalid operation" << std::endl;
+    }
+    else
+    {
+        std::cout << "Unknown exception" << std::endl;
+    }
+    return EXCEPTION_EXECUTE_HANDLER;
+}
+
 int main(int argc, char** argv)
 {
 	__try
 	{
 		test1();
 	}
-	__except (EXCEPTION_EXECUTE_HANDLER)
+	__except (filter_exception(GetExceptionCode(), GetExceptionInformation()))
 	{
-		auto code = GetExceptionCode();
-		std::cout << std::hex <<  "SEH: 0x" << code << std::endl;		
+        exit(GetExceptionCode());
 	}
 }
