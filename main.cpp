@@ -121,9 +121,8 @@ void test_calculations(size_t N)
         p[i] = gen64();
     }
     std::cout << "OK" << std::endl;
-   // v[5] = 0.0;
+    // v[5] = 0.0;
 
-    double s = 0.0;
     for (int i = 0; i < v.size(); ++i)
     {
         if (!std::isfinite(v[i]))
