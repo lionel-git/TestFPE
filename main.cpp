@@ -52,11 +52,9 @@ void testFPE()
 
 int filter_exception(unsigned int code, struct _EXCEPTION_POINTERS* ep)
 {
-    std::cout << "Exception code: 0x" << std::hex << code << std::endl;
+    std::cout << std::format("Exception code: {:x} ", code);
     if (ep != nullptr && ep->ExceptionRecord != nullptr)
-    {
-        std::cout << "Address: 0x" << (void*)ep->ExceptionRecord->ExceptionAddress << std::endl;
-    }
+        std::cout << std::format(", Address: 0x{} : ", ep->ExceptionRecord->ExceptionAddress);
    // a = EXCEPTION_NONCONTINUABLE;
 
     if (code == EXCEPTION_INT_DIVIDE_BY_ZERO)
@@ -108,25 +106,61 @@ void hash_result(const char *data, size_t size)
     printf("\n");
 }
 
+void test_gen()
+{
+    std::mt19937_64 gen64;
+    for (int i = 0; i < 10; i++)
+    {
+        std::cout << i << " " << gen64() << std::endl;
+    }
+}
+
+size_t G_last_index = 0;
 
 void test_calculations(size_t N)
 {
     std::cout << "N = " << N << std::endl;
     std::mt19937_64 gen64;
-    gen64.discard(10000 - 1);
-    assert(gen64() == 9981545732273789042ull);
 
     std::vector<double> v(N);
     unsigned long long* p = (unsigned long long*)v.data();
     for (size_t i = 0; i < v.size(); ++i)
     {
         p[i] = gen64();
+        std::cout << i << " " << p[i] << std::endl;
     }
     std::cout << "OK" << std::endl;
     // v[5] = 0.0;
 
     for (size_t i = 0; i < v.size(); ++i)
     {
+        G_last_index = i;
+
+        if (i == 16)
+        {
+            //std::cout << v[i] << std::endl;
+            unsigned long long A = *(unsigned long long*) & v[i];
+            std::cout  << A << std::endl;
+            std::cout << "Before is finite" << std::endl;
+            if (!std::isfinite(v[i]))
+            {
+                std::cout << "Not finite" << std::endl;
+            }
+            std::cout << "After is finite" << std::endl;
+
+            if (!std::isfinite(v[i]))
+                v[i] = 0.3;
+            double a = MIN(v[i], 1e+100);
+            a = MAX(a, -1e+100);
+            if (a > 0)
+                a = MAX(a, 1e-100);
+            if (a < 0)
+                a = MIN(a, -1e-100);
+            double zz = 1 / a + 1 / std::sqrt((a * a + 1.235));
+            std::cout << "zz = " << zz << std::endl;
+
+        }
+        std::cout << i << " " << v[i] << std::endl;
         if (!std::isfinite(v[i]))
             v[i] = 0.3;
         double a = MIN(v[i], 1e+100);
@@ -141,8 +175,20 @@ void test_calculations(size_t N)
     hash_result((const char*)v.data(), v.size() * sizeof(double));
 }
 
+void test_case()
+{
+    unsigned long long A = 9219209713614924562;
+    double a = *(double*)&A;
+    std::cout << "Value: " <<  a << std::endl;
+    std::cout.flush();
+    double b = a + 1;
+    std::cout << "Value b : " << b << std::endl;
+}
+
 int main(int argc, char** argv)
 {
+  //  test_gen(); return 0;
+
 	__try
 	{
         bool throwFPE = false;
@@ -150,10 +196,15 @@ int main(int argc, char** argv)
         parseOption(argc, argv, throwFPE, N);
         if (throwFPE)
             setThrowFPE();
-        test_calculations(N);
+
+        test_case(); return 0;
+
+
+//        test_calculations(N);
 	}
 	__except (filter_exception(GetExceptionCode(), GetExceptionInformation()))
 	{
+        std::cout << "last index: " << G_last_index << std::endl;
         exit(GetExceptionCode());
 	}
 }
