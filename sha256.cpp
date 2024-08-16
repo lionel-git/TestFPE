@@ -12,6 +12,8 @@
 			  This implementation uses little endian byte order.
 *********************************************************************/
 
+#pragma warning(disable : 4244)
+
 /*************************** HEADER FILES ***************************/
 #include <stdlib.h>
 #include <memory.h>

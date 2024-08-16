@@ -10,6 +10,8 @@
 
 #include "sha256.h"
 
+#pragma warning(disable: 4189)
+
 #define MIN(a,b) ((a) < (b) ? (a) : (b))
 #define MAX(a,b) ((a) > (b) ? (a) : (b))
 
@@ -116,14 +118,14 @@ void test_calculations(size_t N)
 
     std::vector<double> v(N);
     unsigned long long* p = (unsigned long long*)v.data();
-    for (int i = 0; i < v.size(); ++i)
+    for (size_t i = 0; i < v.size(); ++i)
     {
         p[i] = gen64();
     }
     std::cout << "OK" << std::endl;
     // v[5] = 0.0;
 
-    for (int i = 0; i < v.size(); ++i)
+    for (size_t i = 0; i < v.size(); ++i)
     {
         if (!std::isfinite(v[i]))
             v[i] = 0.3;
