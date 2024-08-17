@@ -1,3 +1,5 @@
+#define _CRT_SECURE_NO_WARNINGS 1
+
 #include <iostream>
 #include <float.h>
 #include <Windows.h>
@@ -10,10 +12,13 @@
 
 #include "sha256.h"
 
+
 #pragma warning(disable: 4189)
 
 #define MIN(a,b) ((a) < (b) ? (a) : (b))
 #define MAX(a,b) ((a) > (b) ? (a) : (b))
+
+bool G_throwFPE = false;
 
 void setThrowFPE()
 {
@@ -22,6 +27,7 @@ void setThrowFPE()
     unsigned int new_value = cw & ~(_EM_ZERODIVIDE | _EM_INVALID | _EM_OVERFLOW);
     _controlfp_s(&cw, new_value, _MCW_EM);
     std::cout << "Thow FPE activated" << std::endl;
+    G_throwFPE = true;
 }
 
 void testFPE()
@@ -115,7 +121,28 @@ void test_gen()
     }
 }
 
+void save_result(const char* data, size_t size)
+{
+    std::string fileName = "result.bin";
+    if (G_throwFPE)
+        fileName = "result_fpe.bin";
+    FILE* f = fopen(fileName.c_str(), "wb");
+    if (f == nullptr)
+    {
+        std::cout << "Error open file" << std::endl;
+        return;
+    }
+    fwrite(data, 1, size, f);
+    fclose(f);
+    std::cout << "Result saved" << std::endl;
+}
+
 size_t G_last_index = 0;
+
+double myfunc(double a)
+{
+    return  1 / a + 1 / std::sqrt((a * a + 1.235)) + std::log(a * a + 0.12546);
+}
 
 void test_calculations(size_t N)
 {
@@ -124,10 +151,26 @@ void test_calculations(size_t N)
 
     std::vector<double> v(N);
     unsigned long long* p = (unsigned long long*)v.data();
+    std::cout << "Start gen" << std::endl;
     for (size_t i = 0; i < v.size(); ++i)
     {
-        p[i] = gen64();
-        std::cout << i << " " << p[i] << std::endl;
+       // std::cout << i << std::endl;
+        do
+        {
+            p[i] = gen64();
+        } 
+        while ((p[i] >= 0x7FF0000000000001 && p[i] <= 0x7FF7FFFFFFFFFFFF) || 
+               (p[i] >= 0xFFF0000000000001 && p[i] <= 0xFFF7FFFFFFFFFFFF));
+
+        double a = *(double*)&p[i];
+        if (std::isnan(a))
+        {
+            
+            p[i] = 0x12345578556;
+            double b = *(double*)&p[i];
+            //std::cout << i << " Found nan  " << b << std::endl;
+        }
+   //     std::cout << i << " " << p[i] << std::endl;
     }
     std::cout << "OK" << std::endl;
     // v[5] = 0.0;
@@ -136,7 +179,7 @@ void test_calculations(size_t N)
     {
         G_last_index = i;
 
-        if (i == 16)
+        if (i == 6024)
         {
             //std::cout << v[i] << std::endl;
             unsigned long long A = *(unsigned long long*) & v[i];
@@ -156,11 +199,10 @@ void test_calculations(size_t N)
                 a = MAX(a, 1e-100);
             if (a < 0)
                 a = MIN(a, -1e-100);
-            double zz = 1 / a + 1 / std::sqrt((a * a + 1.235));
-            std::cout << "zz = " << zz << std::endl;
-
+            double zz = myfunc(a);
+            std::cout << "zz = " << std::format("{}", zz) << std::endl;
         }
-        std::cout << i << " " << v[i] << std::endl;
+        //std::cout << i << " " << v[i] << std::endl;
         if (!std::isfinite(v[i]))
             v[i] = 0.3;
         double a = MIN(v[i], 1e+100);
@@ -169,11 +211,17 @@ void test_calculations(size_t N)
             a = MAX(a, 1e-100);
         if (a < 0)
             a = MIN(a, -1e-100);
-        v[i] = 1 / a + 1 / std::sqrt((a * a + 1.235));
+        v[i] = myfunc(a);
+        if (i==6024)
+        {
+            std::cout << "Result: " << std::format("{}", v[i]) << std::endl;
+        }
     }
     std::cout << "Start hashing" << std::endl;
     hash_result((const char*)v.data(), v.size() * sizeof(double));
+    save_result((const char*)v.data(), v.size() * sizeof(double));
 }
+
 
 void test_case()
 {
@@ -183,6 +231,55 @@ void test_case()
     std::cout.flush();
     double b = a + 1;
     std::cout << "Value b : " << b << std::endl;
+}
+
+void test_case2()
+{
+    unsigned long long A = 5603783088855566994;
+    double a = *(double*)&A;
+    std::cout << "Value: " << std::format("{}", a) << std::endl;
+    double b = myfunc(a);
+    std::cout << "Res: " << std::format("{}", b) << std::endl;
+}
+
+void load_file(const char* fileName, std::vector<double>& v)
+{
+    FILE* f = fopen(fileName, "rb");
+    if (f == nullptr)
+    {
+        std::cout << "Error open file" << std::endl;
+        return;
+    }
+    fseek(f, 0, SEEK_END);
+    size_t size = ftell(f);
+    fseek(f, 0, SEEK_SET);
+    v.resize(size / sizeof(double));
+    fread(v.data(), 1, size, f);
+    fclose(f);
+    std::cout << "File loaded" << std::endl;
+}
+
+void compare_results()
+{
+    std::vector<double> v1;
+    std::vector<double> v2;
+    load_file("result.bin", v1);
+    load_file("result_fpe.bin", v2);
+    if (v1.size() != v2.size())
+    {
+        std::cout << "Different sizes" << std::endl;
+        return;
+    }
+    std::cout << "size =" << v1.size() << std::endl;
+    for (size_t i = 0; i < v1.size(); ++i)
+    {
+        if (v1[i] != v2[i])
+        {
+            std::cout << "Different values " << i << " " << std::format("{}", v1[i]) << " " << std::format("{}", v2[i]) << std::endl;
+            return;
+        }
+    }
+    std::cout << "Results are equal" << std::endl;
 }
 
 int main(int argc, char** argv)
@@ -197,10 +294,14 @@ int main(int argc, char** argv)
         if (throwFPE)
             setThrowFPE();
 
-        test_case(); return 0;
+        //test_case2(); return 0;
 
 
-//        test_calculations(N);
+        test_calculations(N);
+
+        
+        compare_results();
+
 	}
 	__except (filter_exception(GetExceptionCode(), GetExceptionInformation()))
 	{
